@@ -1,14 +1,14 @@
-const API_BASE_URL = "https://code-drop-production.up.railway.app/api";
+const API_URL = "http://localhost:8080/api"
 
-export async function sendData(text, token) {
+export async function sendData(code, token) {
   try {
-    const response = await fetch("https://code-drop-production.up.railway.app/api/submit", {
+    const response = await fetch(`${API_URL}/submit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "", // Certifique-se de enviar o token corretamente
+        Authorization: token ? `Bearer ${token}` : "",
       },
-      body: JSON.stringify({ text }), // O backend pode estar esperando "text" ao invés de "code"
+      body: JSON.stringify({ code }), 
     });
 
     if (!response.ok) {
@@ -25,7 +25,7 @@ export async function sendData(text, token) {
 
 export async function getUserLinks(token) {
   try {
-    const response = await fetch(`${API_BASE_URL}/user/links`, {
+    const response = await fetch(`${API_URL}/user/links`, {
       method: "GET",
       headers: { 
         "Content-Type": "application/json",
@@ -46,7 +46,7 @@ export async function getUserLinks(token) {
 
 export async function registerUser(nome, email, senha) {
   try {
-      const response = await fetch(`${API_BASE_URL}/register`, {
+      const response = await fetch(`${API_URL}/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ nome, email, senha }),
@@ -65,7 +65,7 @@ export async function registerUser(nome, email, senha) {
 
 export async function loginUser(email, senha) {
   try {
-      const response = await fetch(`${API_BASE_URL}/login`, {
+      const response = await fetch(`${API_URL}/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, senha }),

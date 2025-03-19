@@ -6,7 +6,7 @@ import Footer from "./componentes/footer";
 
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [text, setText] = useState("");
+  const [code, setCode] = useState("");
   const [link, setLink] = useState("");
   const [token] = useState(localStorage.getItem("token") || "");
   const [userLinks, setUserLinks] = useState([]);
@@ -29,7 +29,7 @@ function App() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const storedToken = localStorage.getItem("token"); 
-    const response = await sendData(text, storedToken); 
+    const response = await sendData(code, storedToken); 
 
     if (response && response.link) {
       console.log("Resposta do backend:", response);
@@ -59,8 +59,8 @@ function App() {
               id="code"
               cols="70"
               rows="16"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
               className="border-solid border-gray-300 text-xl resize-none rounded-xl p-2"
               placeholder="Digite seu código"
               required

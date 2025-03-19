@@ -4,42 +4,42 @@ import Header from "./componentes/header";
 
 const ViewCode = () => {
   const { id } = useParams();
-  const [text, setText] = useState("");
+  const [code, setCode] = useState("");
 
   useEffect(() => {
-    const fetchText = async () => {
+    const fetchCode = async () => {
       try {
-        const response = await fetch(`https://code-drop-production.up.railway.app/api/view/${id}`);
+        const response = await fetch(`http://localhost:8080/api/view/${id}`);
         const data = await response.json();
 
         if (response.ok) {
-          setText(data.text);
+          setCode(data.code);
         } else {
-          setText("Erro ao carregar o texto.");
+          setCode("Erro ao carregar o texto.");
         }
       // eslint-disable-next-line no-unused-vars
       } catch (error) {
-        setText("Erro de conexão com o servidor.");
+        setCode("Erro de conexão com o servidor.");
       }
     };
 
-    fetchText();
+    fetchCode();
   }, [id]);
 
   return (
     <>
       <Header />
       <div className="container">
-        {text ? (
+        {code ? (
           <>
             <h1 className="text-black font-mono">Código:</h1>
-            <textarea name="returnedCode" id="returnedCode" cols="70" rows="15" value={text} readOnly
+            <textarea name="returnedCode" id="returnedCode" cols="70" rows="15" value={code} readOnly
             className="border-solid border-gray-200 text-2xl resize-none"></textarea>
           </>
         ) : (
           <p>Carregando...</p>          
         )}
-            <form action="https://drop-code.netlify.app/">
+            <form action="http://localhost:5173">
               <input type="submit" value="Voltar" className="bg-blue-800 text-white border-2 border-white px-6 py-2 rounded-md cursor-pointer" />
             </form>
       </div>

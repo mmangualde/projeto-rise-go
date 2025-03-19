@@ -59,7 +59,7 @@ const LoginPlace = () => {
                     />
                     <p className='text-white text-center text-lg font-sans'>
                         Não tem uma conta? 
-                        <a href="https://drop-code.netlify.app/signup" className=" text-white border border-white text-lg font-sans">Cadastre-se aqui</a>
+                        <a href="http://localhost:5173/signup" className=" text-white border border-white text-lg font-sans">Cadastre-se aqui</a>
                     </p>
                 </form>
                 </main>
