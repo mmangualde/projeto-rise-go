@@ -5,11 +5,44 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"database/sql"
+	"fmt"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 )
+
+const (
+	host     = "localhost"
+	port     = 5432
+	user     = "postgres"
+	password = "Mo@200802" // setar variavel de ambiente para guardar senha
+	dbname   = "code-drop"
+  )
+  
+  func main_databaseconn() {
+	connStr := fmt.Sprintf("host=%s port=%d user=%s "+
+	  "password=%s dbname=%s sslmode=disable",
+	  host, port, user, password, dbname)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+	  panic(err)
+	}
+	defer db.Close()
+  
+	err = db.Ping()
+	if err != nil {
+	  panic(err)
+	}
+  
+	fmt.Println("Successfully connected!")
+  }
+
+//   func Cadastro(){
+	
+//   }
 
 type CodeEntry struct {
 	Code string `json:"code"`
@@ -66,6 +99,7 @@ func getCodeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	main_databaseconn()
 	router := mux.NewRouter()
 
 	corsHandler := cors.New(cors.Options{
