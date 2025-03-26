@@ -12,7 +12,10 @@ import (
 	"github.com/rs/cors"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 )
+
+var db *sql.DB
 
 const (
 	host     = "localhost"
@@ -23,26 +26,58 @@ const (
   )
   
   func main_databaseconn() {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s "+
-	  "password=%s dbname=%s sslmode=disable",
-	  host, port, user, password, dbname)
-	db, err := sql.Open("postgres", connStr)
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
+
+	var err error
+	db, err = sql.Open("postgres", connStr) 
 	if err != nil {
-	  panic(err)
+		log.Fatal("Erro ao conectar ao banco:", err)
 	}
-	defer db.Close()
-  
+
 	err = db.Ping()
 	if err != nil {
-	  panic(err)
+		log.Fatal("Erro ao verificar conexão com o banco:", err)
 	}
-  
-	fmt.Println("Successfully connected!")
-  }
 
-//   func Cadastro(){
-	
-//   }
+	fmt.Println("Conectado ao banco de dados!")
+}
+
+type User struct{
+	Name  string `json:"nome"`
+	Email string `json:"email"`
+	Senha string `json:"senha"`
+}
+
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func registerUser(w http.ResponseWriter, r *http.Request) {
+    var user User
+    err := json.NewDecoder(r.Body).Decode(&user)
+    if err != nil {
+        http.Error(w, "Erro ao processar JSON", http.StatusBadRequest)
+        return
+    }
+
+    hashedPassword, err := hashPassword(user.Senha)
+    if err != nil {
+        http.Error(w, "Erro ao criptografar senha", http.StatusInternalServerError)
+        return
+    }
+
+    _, err = db.Exec(`INSERT INTO "Users" (name, password, email) VALUES ($1, $2, $3)`, user.Name, hashedPassword, user.Email)
+    if err != nil {
+		log.Println("Erro ao cadastrar usuário:", err)
+        http.Error(w, "Erro ao cadastrar usuário: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(map[string]string{"message": "Usuário cadastrado com sucesso!"})
+}
 
 type CodeEntry struct {
 	Code string `json:"code"`
@@ -100,20 +135,27 @@ func getCodeHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	main_databaseconn()
+	defer db.Close()
 	router := mux.NewRouter()
 
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
+		Debug:            true,
 	})
 
 	router.Use(corsHandler.Handler)
 
 	router.HandleFunc("/api/submit", saveCodeHandler).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/view/{id}", getCodeHandler).Methods("GET")
+	router.HandleFunc("/api/register", registerUser).Methods("POST")
+	router.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}).Methods("OPTIONS")
 
 	log.Println("Servidor rodando em http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	handler := corsHandler.Handler(router)
+	log.Fatal(http.ListenAndServe(":8080", handler))
 }
