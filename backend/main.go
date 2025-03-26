@@ -7,12 +7,16 @@ import (
 	"sync"
 	"database/sql"
 	"fmt"
+	"time"
+	"crypto/rand"
+	"encoding/base64"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/dgrijalva/jwt-go"
 )
 
 var db *sql.DB
@@ -79,6 +83,63 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(map[string]string{"message": "Usuário cadastrado com sucesso!"})
 }
 
+func generateSecretKey() string {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	if err != nil {
+		panic("Erro ao gerar chave secreta")
+	}
+	return base64.StdEncoding.EncodeToString(key)
+}
+
+type Claims struct {
+	Email string `json:"email"`
+	jwt.StandardClaims
+}
+
+func loginUser(w http.ResponseWriter, r *http.Request) {
+	secret := generateSecretKey()
+	var jwtSecret = []byte(secret)
+	var user User
+	var storedPassword string
+
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		http.Error(w, "Erro ao processar JSON", http.StatusBadRequest)
+		return
+	}
+
+	err = db.QueryRow(`SELECT password FROM "Users" WHERE email = $1`, user.Email).Scan(&storedPassword)
+	if err != nil {
+		http.Error(w, "Usuário não encontrado", http.StatusUnauthorized)
+		return
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(user.Senha))
+	if err != nil {
+		http.Error(w, "Senha incorreta", http.StatusUnauthorized)
+		return
+	}
+
+	expirationTime := time.Now().Add(24 * time.Hour)
+	claims := &Claims{
+		Email: user.Email,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtSecret)
+	if err != nil {
+		http.Error(w, "Erro ao gerar token", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+}
+
 type CodeEntry struct {
 	Code string `json:"code"`
 }
@@ -139,7 +200,7 @@ func main() {
 	router := mux.NewRouter()
 
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{"http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -154,6 +215,7 @@ func main() {
 	router.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}).Methods("OPTIONS")
+	router.HandleFunc("/api/login", loginUser).Methods("POST")
 
 	log.Println("Servidor rodando em http://localhost:8080")
 	handler := corsHandler.Handler(router)
