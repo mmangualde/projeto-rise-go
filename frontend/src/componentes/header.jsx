@@ -4,8 +4,8 @@ const Header = () => {
     const [token] = useState(localStorage.getItem("token") || "");
 
     const logout = () => {
-        if (localStorage.getItem("token")) { // Verifica se o usuário está logado
-            localStorage.removeItem("token"); // Remove o token
+        if (localStorage.getItem("token")) { 
+            localStorage.removeItem("token");
             alert("Você saiu da conta!");
         }
     };

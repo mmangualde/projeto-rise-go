@@ -4,6 +4,8 @@ import Modal from "./modal";
 import Header from "./componentes/header";
 import Footer from "./componentes/footer";
 
+
+
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [code, setCode] = useState("");
@@ -47,6 +49,14 @@ function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  function init() {
+    if (localStorage.getItem("token")) { 
+      localStorage.removeItem("token");
+  };
+  }
+  useEffect(() => {
+    init();
+  },[]);
   return (
     <>
       <Header />
