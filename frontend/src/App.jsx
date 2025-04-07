@@ -48,15 +48,6 @@ function App() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  function init() {
-    if (localStorage.getItem("token")) { 
-      localStorage.removeItem("token");
-  };
-  }
-  useEffect(() => {
-    init();
-  },[]);
   return (
     <>
       <Header />
