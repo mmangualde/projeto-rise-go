@@ -267,26 +267,40 @@ func getCodeHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(CodeEntry{Code: code})
 }
 
-// type linkEntry struct{
-// 	Link string `json:"url"`
-// }
+type linkEntry struct{
+	Link string `json:"url"`
+}
 
-// func getUserLinks(w http.ResponseWriter, r *http.Request){
-// 	var URL string 
-// 	var userID int
+func getUserLinks(w http.ResponseWriter, r *http.Request) {
+	userID, err := extractUserID(r)
+	if err != nil {
+		http.Error(w, "Erro ao buscar id do usuário", http.StatusBadRequest)
+		return
+	}
 
-// 	userID, err := extractUserID(r)
-// 	if err != nil{
-// 		http.Error(w, "Erro ao buscar id do usuario", http.StatusBadRequest)
-// 	}
+	rows, err := db.Query("SELECT url FROM links WHERE user_id = $1", userID)
+	if err != nil {
+		http.Error(w, "Erro ao buscar links do usuário", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
 
-// 	err = db.QueryRow("SELECT url FROM links WEHRE user id = $1", userID).Scan(&URL)
-// 	if err == sql.ErrNoRows{
-// 		http.Error(w, "Erro ao buscar links do usuário", http.StatusBadRequest)
-// }
+	var links []linkEntry
 
-// json.NewEncoder(w).Encode(linkEntry{Link: URL})
-// }
+	for rows.Next() {
+		var link linkEntry
+		if err := rows.Scan(&link.Link); err != nil {
+			http.Error(w, "Erro ao processar link", http.StatusInternalServerError)
+			return
+		}
+		links = append(links, link)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"links": links,
+	})
+}
 
 func main() {
 	main_databaseconn()
@@ -310,6 +324,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	}).Methods("OPTIONS")
 	router.HandleFunc("/api/login", loginUser).Methods("POST")
+	router.HandleFunc("/api/user/links", getUserLinks).Methods("GET")
 
 	log.Println("Servidor rodando em http://localhost:8080")
 	handler := corsHandler.Handler(router)
