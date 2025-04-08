@@ -1,0 +1,5 @@
+CREATE TABLE "CodeSnippets" (
+  id UUID PRIMARY KEY,
+  code TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
