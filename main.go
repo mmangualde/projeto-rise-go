@@ -1,23 +1,23 @@
 package main
 
 import (
+	"crypto/rand"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"sync"
-	"database/sql"
-	"fmt"
-	"time"
-	"crypto/rand"
-	"encoding/base64"
 	"strings"
+	"sync"
+	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/rs/cors"
-	"github.com/google/uuid"
-	_ "github.com/lib/pq"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
+	"github.com/rs/cors"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var db *sql.DB
@@ -28,14 +28,14 @@ const (
 	user     = "postgres"
 	password = "Mo@200802" // setar variavel de ambiente para guardar senha
 	dbname   = "code-drop"
-  )
-  
-  func main_databaseconn() {
+)
+
+func main_databaseconn() {
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
 
 	var err error
-	db, err = sql.Open("postgres", connStr) 
+	db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatal("Erro ao conectar ao banco:", err)
 	}
@@ -48,7 +48,7 @@ const (
 	fmt.Println("Conectado ao banco de dados!")
 }
 
-type User struct{
+type User struct {
 	Name  string `json:"nome"`
 	Email string `json:"email"`
 	Senha string `json:"senha"`
@@ -60,28 +60,28 @@ func hashPassword(password string) (string, error) {
 }
 
 func registerUser(w http.ResponseWriter, r *http.Request) {
-    var user User
-    err := json.NewDecoder(r.Body).Decode(&user)
-    if err != nil {
-        http.Error(w, "Erro ao processar JSON", http.StatusBadRequest)
-        return
-    }
+	var user User
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		http.Error(w, "Erro ao processar JSON", http.StatusBadRequest)
+		return
+	}
 
-    hashedPassword, err := hashPassword(user.Senha)
-    if err != nil {
-        http.Error(w, "Erro ao criptografar senha", http.StatusInternalServerError)
-        return
-    }
+	hashedPassword, err := hashPassword(user.Senha)
+	if err != nil {
+		http.Error(w, "Erro ao criptografar senha", http.StatusInternalServerError)
+		return
+	}
 
-    _, err = db.Exec(`INSERT INTO "Users" (name, password, email) VALUES ($1, $2, $3)`, user.Name, hashedPassword, user.Email)
-    if err != nil {
+	_, err = db.Exec(`INSERT INTO "Users" (name, password, email) VALUES ($1, $2, $3)`, user.Name, hashedPassword, user.Email)
+	if err != nil {
 		log.Println("Erro ao cadastrar usuário:", err)
-        http.Error(w, "Erro ao cadastrar usuário: "+err.Error(), http.StatusInternalServerError)
-        return
-    }
+		http.Error(w, "Erro ao cadastrar usuário: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-    w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(map[string]string{"message": "Usuário cadastrado com sucesso!"})
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Usuário cadastrado com sucesso!"})
 }
 
 var jwtSecret []byte
@@ -93,20 +93,20 @@ func generateSecretKey() string {
 		if err != nil {
 			panic("Erro ao gerar chave secreta")
 		}
-		jwtSecret = key 
+		jwtSecret = key
 	}
 
 	return base64.StdEncoding.EncodeToString(jwtSecret)
 }
 
 var (
-	tokenStorage = make(map[int]string) 
-	tokenMutex   = sync.Mutex{}        
+	tokenStorage = make(map[int]string)
+	tokenMutex   = sync.Mutex{}
 )
 
 type Claims struct {
-	Email string `json:"email"`
-	UserID int `json:"user_id"`
+	Email  string `json:"email"`
+	UserID int    `json:"user_id"`
 	jwt.StandardClaims
 }
 
@@ -205,7 +205,6 @@ func extractUserID(r *http.Request) (int, error) {
 	return userID, nil
 }
 
-
 func saveCodeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -219,7 +218,7 @@ func saveCodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := generateID()
-	link := "http://localhost:5173/view/" + id
+	link := "http://localhost:3000/view/" + id
 
 	userID, err := extractUserID(r)
 
@@ -267,7 +266,7 @@ func getCodeHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(CodeEntry{Code: code})
 }
 
-type linkEntry struct{
+type linkEntry struct {
 	Link string `json:"url"`
 }
 
@@ -330,3 +329,4 @@ func main() {
 	handler := corsHandler.Handler(router)
 	log.Fatal(http.ListenAndServe(":8080", handler))
 }
+
