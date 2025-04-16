@@ -1,6 +1,6 @@
 module projeto-rise
 
-go 1.24.1
+go 1.21
 
 require github.com/gorilla/mux v1.8.1
 
