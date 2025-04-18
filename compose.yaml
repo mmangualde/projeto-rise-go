@@ -1,14 +1,52 @@
-version: '3.8'
-
 services:
+  migrate:
+    image: migrate/migrate:v4.15.2
+    container_name: codedrop_migrate
+    volumes:
+      - ./migrations:/migrations
+    entrypoint: ["migrate"]
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://postgres:Mo@200802@db:5432/code-drop?sslmode=disable",
+        "up"
+      ]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - codedrop_network
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile  
+    restart: unless-stopped      # ← Add this line
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - codedrop_network
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: Mo@200802    
+      DB_NAME: code-drop
+
   db:
     image: postgres:15
     container_name: codedrop_postgres
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Mo@200802  # Consider using environment variables instead of hardcoding
+      POSTGRES_PASSWORD: Mo@200802
       POSTGRES_DB: code-drop
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      retries: 5
     ports:
       - "5432:5432"
     volumes:

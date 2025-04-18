@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,26 +24,29 @@ import (
 
 var db *sql.DB
 
-const (
-	host     = "localhost"
-	port     = 5432
-	user     = "postgres"
-	password = "Mo@200802" // setar variavel de ambiente para guardar senha
-	dbname   = "code-drop"
-)
-
 func main_databaseconn() {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
+	host := os.Getenv("DB_HOST")
+	portStr := os.Getenv("DB_PORT")
+	user := os.Getenv("DB_USER")
+	password := os.Getenv("DB_PASSWORD")
+	dbname := os.Getenv("DB_NAME")
 
-	var err error
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		log.Fatalf("Invalid DB_PORT (%q): %v", portStr, err)
+	}
+
+	connStr := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname,
+	)
+
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatal("Erro ao conectar ao banco:", err)
 	}
 
-	err = db.Ping()
-	if err != nil {
+	if err = db.Ping(); err != nil {
 		log.Fatal("Erro ao verificar conexão com o banco:", err)
 	}
 
@@ -61,8 +66,7 @@ func hashPassword(password string) (string, error) {
 
 func registerUser(w http.ResponseWriter, r *http.Request) {
 	var user User
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		http.Error(w, "Erro ao processar JSON", http.StatusBadRequest)
 		return
 	}
@@ -73,7 +77,10 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec(`INSERT INTO "Users" (name, password, email) VALUES ($1, $2, $3)`, user.Name, hashedPassword, user.Email)
+	_, err = db.Exec(
+		`INSERT INTO "Users" (name, password, email) VALUES ($1, $2, $3)`,
+		user.Name, hashedPassword, user.Email,
+	)
 	if err != nil {
 		log.Println("Erro ao cadastrar usuário:", err)
 		http.Error(w, "Erro ao cadastrar usuário: "+err.Error(), http.StatusInternalServerError)
@@ -89,13 +96,11 @@ var jwtSecret []byte
 func generateSecretKey() string {
 	if jwtSecret == nil {
 		key := make([]byte, 32)
-		_, err := rand.Read(key)
-		if err != nil {
+		if _, err := rand.Read(key); err != nil {
 			panic("Erro ao gerar chave secreta")
 		}
 		jwtSecret = key
 	}
-
 	return base64.StdEncoding.EncodeToString(jwtSecret)
 }
 
@@ -112,24 +117,25 @@ type Claims struct {
 
 func loginUser(w http.ResponseWriter, r *http.Request) {
 	generateSecretKey()
-	var user User
-	var storedPassword string
-	var user_ID int
 
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
+	var user User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		http.Error(w, "Erro ao processar JSON", http.StatusBadRequest)
 		return
 	}
 
-	err = db.QueryRow(`SELECT user_id, password FROM "Users" WHERE email = $1`, user.Email).Scan(&user_ID, &storedPassword)
+	var storedPassword string
+	var userID int
+	err := db.QueryRow(
+		`SELECT user_id, password FROM "Users" WHERE email = $1`,
+		user.Email,
+	).Scan(&userID, &storedPassword)
 	if err != nil {
 		http.Error(w, "Usuário não encontrado", http.StatusUnauthorized)
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(user.Senha))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(user.Senha)); err != nil {
 		http.Error(w, "Senha incorreta", http.StatusUnauthorized)
 		return
 	}
@@ -137,7 +143,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
 		Email:  user.Email,
-		UserID: user_ID,
+		UserID: userID,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 		},
@@ -151,7 +157,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokenMutex.Lock()
-	tokenStorage[user_ID] = tokenString
+	tokenStorage[userID] = tokenString
 	tokenMutex.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -184,25 +190,21 @@ func extractUserID(r *http.Request) (int, error) {
 	if tokenString == "" {
 		return 0, fmt.Errorf("token não encontrado")
 	}
-
 	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
 	})
-
 	if err != nil || !token.Valid {
 		return 0, fmt.Errorf("token inválido")
 	}
-
-	userID := claims.UserID
 
 	if !isTokenValid(claims.UserID, tokenString) {
 		return 0, fmt.Errorf("token expirado ou inválido")
 	}
 
-	return userID, nil
+	return claims.UserID, nil
 }
 
 func saveCodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -221,29 +223,29 @@ func saveCodeHandler(w http.ResponseWriter, r *http.Request) {
 	link := "http://localhost:3000/view/" + id
 
 	userID, err := extractUserID(r)
-
 	if err != nil {
 		mutex.Lock()
 		codeStorage[id] = entry.Code
 		mutex.Unlock()
 	} else {
-		_, err = db.Exec("INSERT INTO links (url, user_id, code) VALUES ($1, $2, $3)", link, userID, entry.Code)
+		_, err = db.Exec(
+			"INSERT INTO links (url, user_id, code) VALUES ($1, $2, $3)",
+			link, userID, entry.Code,
+		)
 		if err != nil {
 			http.Error(w, "Erro ao salvar código no banco", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	response := map[string]string{"link": link}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(map[string]string{"link": link})
 }
 
 func getCodeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	vars := mux.Vars(r)
-	id := vars["id"]
+	id := mux.Vars(r)["id"]
 	link := "http://localhost:5173/view/" + id
 
 	var code string
@@ -285,7 +287,6 @@ func getUserLinks(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	var links []linkEntry
-
 	for rows.Next() {
 		var link linkEntry
 		if err := rows.Scan(&link.Link); err != nil {
@@ -296,16 +297,14 @@ func getUserLinks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"links": links,
-	})
+	json.NewEncoder(w).Encode(map[string]interface{}{"links": links})
 }
 
 func main() {
 	main_databaseconn()
 	defer db.Close()
-	router := mux.NewRouter()
 
+	router := mux.NewRouter()
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
@@ -313,7 +312,6 @@ func main() {
 		AllowCredentials: true,
 		Debug:            true,
 	})
-
 	router.Use(corsHandler.Handler)
 
 	router.HandleFunc("/api/submit", saveCodeHandler).Methods("POST", "OPTIONS")
@@ -329,4 +327,3 @@ func main() {
 	handler := corsHandler.Handler(router)
 	log.Fatal(http.ListenAndServe(":8080", handler))
 }
-
